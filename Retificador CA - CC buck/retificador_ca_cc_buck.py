@@ -3,45 +3,40 @@ import matplotlib.pyplot as plt
 
 ##=========RETIFICADOR CA-CC=========##
 
-# Parâmetros de simulação
-Vm = 30                # Pico da tensão de entrada (V)
-f = 50                 # Frequência da rede (Hz)
-omega = 2 * np.pi * f  # Frequência angular (rad/s)
-C = 1000e-6            # Capacitância do filtro (F)
-L = 100e-3             # Indutância em série (H)
-RL = 1e3               # Resistência de carga (Ω)
-t_end = 0.5            # Tempo de simulação (s) - tempo maior para atingir regime
-dt = 1e-5              # Passo de tempo (s)
+# Parâmetros mantidos
+Vm = 30; f = 50; omega = 2*np.pi*f
+C = 1000e-6; L = 100e-3; RL = 1e3
+t_end = 0.5; dt = 1e-5
 
-# Vetor de tempo
 t = np.arange(0, t_end, dt)
-
-# Tensão retificada (full-wave)
 v_in = Vm * np.sin(omega * t)
-v_rect = np.abs(v_in)
+v_rect = np.array([Vm * np.sin(omega * ti)
+                               if Vm * np.sin(omega * ti) > 0
+                               else 0 for ti in t])
 
-# Estados iniciais
-i_L = np.zeros_like(t)   # Corrente no indutor
-v_C = np.zeros_like(t)   # Tensão no capacitor
-v_C[0] = Vm              # Inicializa o capacitor no pico para evitar rampa lenta
+# Estados iniciais REALISTAS
+i_L = np.zeros_like(t)
+v_C = np.zeros_like(t)  # Começa em 0V
 
-# Integração de Euler
+# Integração de Euler FÍSICA
 for k in range(1, len(t)):
-    # modelo ideal: quando v_rect > v_C, capacitor recarrega instantaneamente
-    if v_rect[k-1] > v_C[k-1]:
-        v_C[k-1] = v_rect[k-1]
+    # Verifica condução: diodo ON se tensão retificada > tensão capacitor OU corrente positiva
+    if v_rect[k] > v_C[k-1] or i_L[k-1] > 0:
+        # Modo condução: diodos ON
+        diL_dt = (v_rect[k] - v_C[k-1]) / L
+        dvC_dt = (i_L[k-1] - v_C[k-1]/RL) / C
+    else:
+        # Modo bloqueio: diodos OFF
+        diL_dt = 0
+        dvC_dt = -v_C[k-1]/(RL * C)  # Descarga do capacitor na carga
     
-    # tensão na carga (saída) = i_L * R_L
-    v_load = i_L[k-1] * RL
-    
-    # equações diferenciais
-    diL_dt = (v_C[k-1] - v_load) / L
-    dvC_dt = (-(i_L[k-1])) / C  # capacitor entrega i_L à carga via L
-    
-    # passos de Euler
+    # Atualização dos estados
     i_L[k] = i_L[k-1] + diL_dt * dt
     v_C[k] = v_C[k-1] + dvC_dt * dt
-
+    
+    # Garantir não negatividade da corrente
+    if i_L[k] < 0:
+        i_L[k] = 0
 # Seleciona último ciclo para plotar
 cycle_start = int((t_end - 1/f) / dt)
 
@@ -51,7 +46,7 @@ plt.plot(t[cycle_start:], v_C[cycle_start:], label='Tensão de Saída (v_C)')
 plt.xlabel('Tempo (s)')
 plt.ylabel('Tensão (V)')
 plt.title('Simulação de Retificador com Filtro LC (Regime Permanente)')
-plt.legend()
+plt.legend(loc='upper left', title='Curvas', fontsize=10, ncol=1)
 plt.grid(True)
 plt.tight_layout()
 plt.show()
@@ -110,5 +105,3 @@ plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
-
-print("Vout_ret = ", v_load)
