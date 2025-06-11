@@ -110,3 +110,5 @@ plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+print("Vout_ret = ", v_load)
